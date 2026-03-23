@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mobility-TISSUGAR</title>
+
 <style>
   body, html {
     margin: 0;
@@ -13,9 +14,10 @@
     font-family: sans-serif;
     overflow: hidden;
   }
+
   #loader {
     position: fixed;
-    inset: 0; /* shorthand top:0; left:0; right:0; bottom:0 */
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -24,10 +26,12 @@
     transition: opacity 1s ease;
     opacity: 1;
   }
+
   #loader.fadeout {
     opacity: 0;
     pointer-events: none;
   }
+
   .bar-loader {
     width: 120px;
     max-width: 60%;
@@ -37,6 +41,7 @@
     overflow: hidden;
     position: relative;
   }
+
   .bar-inner {
     width: 40px;
     height: 100%;
@@ -46,10 +51,12 @@
     left: -40px;
     animation: barmove 1.5s infinite linear;
   }
+
   @keyframes barmove {
     0% { left: -40px;}
     100% { left: 120px;}
   }
+
   #content-iframe {
     position: fixed;
     inset: 0;
@@ -60,58 +67,144 @@
     transition: opacity 0.8s cubic-bezier(.4,0,.2,1);
     z-index: 1;
   }
+
   #content-iframe.visible {
     opacity: 1;
   }
 </style>
 </head>
+
 <body>
+
 <div id="loader">
   <div class="bar-loader">
     <div class="bar-inner"></div>
   </div>
 </div>
+
 <iframe id="content-iframe"
         src="https://script.google.com/macros/s/AKfycbyiFYtt6LKm9bho5oDQHmKBlQShz6nBpJrPPXJ0O2xN-ux6LEC9VDsGrPcHNR4Dy_mc/exec">
 </iframe>
+
 <script>
 const loader = document.getElementById('loader');
-  const iframe = document.getElementById('content-iframe');
+const iframe = document.getElementById('content-iframe');
 
+// ==============================
+// Loader (ของเดิม)
+// ==============================
+setTimeout(() => {
+  loader.classList.add('fadeout');
   setTimeout(() => {
-    loader.classList.add('fadeout');
-    setTimeout(() => {
-      loader.style.display = 'none';
-      iframe.classList.add('visible');
-    }, 1000);
-  }, 1500);
+    loader.style.display = 'none';
+    iframe.classList.add('visible');
+  }, 1000);
+}, 1500);
 
-  // ==============================
-  // 🔒 ป้องกันปุ่มย้อนกลับ (Mobile Back)
-  // ==============================
 
-  // push state ครั้งแรก
-  history.pushState(null, null, location.href);
+// ==============================
+// 🔒 ป้องกันปุ่มย้อนกลับ (เดิม)
+// ==============================
+history.pushState(null, null, location.href);
 
-  window.addEventListener('popstate', function (event) {
-    const confirmExit = confirm('ต้องการออกจากหน้านี้หรือไม่ ?');
+window.addEventListener('popstate', function () {
+  const confirmExit = confirm('ต้องการออกจากหน้านี้หรือไม่ ?');
 
-    if (confirmExit) {
-      // อนุญาตให้ย้อนกลับจริง
-      history.back();
-    } else {
-      // กันไม่ให้ย้อนกลับ
-      history.pushState(null, null, location.href);
+  if (confirmExit) {
+    history.back();
+  } else {
+    history.pushState(null, null, location.href);
+  }
+});
+
+
+// ==============================
+// 🔒 กัน reload (เดิม)
+// ==============================
+window.addEventListener('beforeunload', function (e) {
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+
+// ===================================================
+// 📍 GPS SYSTEM (เพิ่มใหม่ - ไม่กระทบของเดิม)
+// ===================================================
+let userLocation = null;
+
+// ดึง GPS ครั้งแรก
+function initGPS() {
+  if (!("geolocation" in navigator)) {
+    console.warn("GPS not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      userLocation = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
+
+      console.log("📍 GPS Ready:", userLocation);
+      sendLocationToIframe();
+    },
+    function (err) {
+      console.warn("GPS Error:", err.message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
     }
-  });
+  );
+}
 
-  // ==============================
-  // 🔒 กัน reload / ปิด tab (เสริม)
-  // ==============================
-  window.addEventListener('beforeunload', function (e) {
-    e.preventDefault();
-    e.returnValue = '';
-  });
+
+// ส่งค่าเข้า iframe
+function sendLocationToIframe() {
+  if (!userLocation) return;
+
+  const frame = document.getElementById('content-iframe');
+
+  if (frame && frame.contentWindow) {
+    frame.contentWindow.postMessage({
+      type: "USER_LOCATION",
+      payload: userLocation
+    }, "*");
+  }
+}
+
+
+// ส่งเมื่อ iframe โหลด
+iframe.addEventListener('load', () => {
+  setTimeout(() => {
+    sendLocationToIframe();
+  }, 1500);
+});
+
+
+// เริ่ม GPS
+initGPS();
+
+
+// ===================================================
+// 🔁 OPTIONAL: อัปเดตตำแหน่ง realtime (ไม่กระทบ)
+// ===================================================
+navigator.geolocation.watchPosition(
+  function (pos) {
+    userLocation = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude
+    };
+    sendLocationToIframe();
+  },
+  function () {},
+  { enableHighAccuracy: true }
+);
+
 </script>
+
 </body>
 </html>
