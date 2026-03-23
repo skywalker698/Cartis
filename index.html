@@ -2,48 +2,52 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>SugarTIS App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>SugarTIS</title>
 
 <meta name="theme-color" content="#0f172a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 
 <style>
-body {
+body{
   margin:0;
   height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
   background:#0f172a;
-  color:white;
   font-family:sans-serif;
 }
 
 /* loader */
-.loader {
-  width:120px;
-  height:4px;
+.loader{
+  width:120px;height:4px;
   background:#1e293b;
   border-radius:2px;
   overflow:hidden;
   position:relative;
 }
-
-.loader::after {
+.loader::after{
   content:"";
   position:absolute;
-  width:40px;
-  height:100%;
+  width:40px;height:100%;
   background:#3b82f6;
-  animation:slide 1.2s infinite linear;
+  animation:slide 1.2s linear infinite;
+}
+@keyframes slide{
+  from{left:-40px} to{left:120px}
 }
 
-@keyframes slide {
-  0% { left:-40px; }
-  100% { left:120px; }
+/* install btn */
+#installBtn{
+  position:fixed;
+  bottom:20px;left:50%;
+  transform:translateX(-50%);
+  padding:10px 16px;
+  border:none;border-radius:8px;
+  background:#3b82f6;color:#fff;
+  display:none;
 }
 </style>
 </head>
@@ -51,138 +55,86 @@ body {
 <body>
 
 <div class="loader"></div>
+<button id="installBtn">ติดตั้งแอป</button>
 
 <script>
-// ==========================
-// CONFIG
-// ==========================
 const APP_URL = "https://script.google.com/macros/s/AKfycbyiFYtt6LKm9bho5oDQHmKBlQShz6nBpJrPPXJ0O2xN-ux6LEC9VDsGrPcHNR4Dy_mc/exec";
 
-// ==========================
-// 1. MANIFEST (สร้าง dynamic)
-// ==========================
+
+// =====================
+// PWA MANIFEST
+// =====================
 const manifest = {
-  name: "SugarTIS",
-  short_name: "SugarTIS",
+  name:"SugarTIS",
+  short_name:"SugarTIS",
   start_url: APP_URL,
-  display: "standalone",
-  background_color: "#0f172a",
-  theme_color: "#0f172a",
-  icons: [
-    {
-      src: "https://cdn-icons-png.flaticon.com/512/743/743922.png",
-      sizes: "192x192",
-      type: "image/png"
-    },
-    {
-      src: "https://cdn-icons-png.flaticon.com/512/743/743922.png",
-      sizes: "512x512",
-      type: "image/png"
-    }
-  ]
+  display:"standalone",
+  background_color:"#0f172a",
+  theme_color:"#0f172a",
+  icons:[{
+    src:"https://cdn-icons-png.flaticon.com/512/743/743922.png",
+    sizes:"192x192",
+    type:"image/png"
+  }]
 };
 
-const manifestBlob = new Blob(
-  [JSON.stringify(manifest)],
-  { type: "application/json" }
-);
+const mBlob = new Blob([JSON.stringify(manifest)],{type:"application/json"});
+const mURL = URL.createObjectURL(mBlob);
+const mLink = document.createElement("link");
+mLink.rel="manifest";
+mLink.href=mURL;
+document.head.appendChild(mLink);
 
-const manifestURL = URL.createObjectURL(manifestBlob);
 
-const link = document.createElement("link");
-link.rel = "manifest";
-link.href = manifestURL;
-document.head.appendChild(link);
-
-// ==========================
-// 2. SERVICE WORKER
-// ==========================
-if ("serviceWorker" in navigator) {
-
-  const swCode = `
-    const CACHE_NAME = "sugartis-v1";
-
-    self.addEventListener("install", e => {
-      self.skipWaiting();
-    });
-
-    self.addEventListener("activate", e => {
-      self.clients.claim();
-    });
-
-    self.addEventListener("fetch", event => {
-      event.respondWith(
-        fetch(event.request).catch(() => {
-          return new Response(
-            "<h3 style='font-family:sans-serif'>📡 Offline</h3>",
-            { headers: { "Content-Type": "text/html" } }
-          );
-        })
-      );
-    });
-
-    // PUSH (future ready)
-    self.addEventListener("push", function(event) {
-      const data = event.data ? event.data.text() : "Notification";
-      self.registration.showNotification("SugarTIS", {
-        body: data,
-        icon: "https://cdn-icons-png.flaticon.com/512/743/743922.png"
-      });
+// =====================
+// SERVICE WORKER
+// =====================
+if("serviceWorker" in navigator){
+  const sw = `
+    self.addEventListener("fetch",e=>{
+      e.respondWith(fetch(e.request).catch(()=>new Response("Offline")))
     });
   `;
-
-  const swBlob = new Blob([swCode], { type: "text/javascript" });
-  const swURL = URL.createObjectURL(swBlob);
-
-  navigator.serviceWorker.register(swURL);
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([sw])));
 }
 
-// ==========================
-// 3. INSTALL PROMPT
-// ==========================
-let deferredPrompt;
 
-window.addEventListener("beforeinstallprompt", (e) => {
+// =====================
+// INSTALL BUTTON
+// =====================
+let deferredPrompt;
+window.addEventListener("beforeinstallprompt", e=>{
   e.preventDefault();
   deferredPrompt = e;
-
-  // แสดงปุ่ม install แบบ native
-  showInstallButton();
+  installBtn.style.display="block";
 });
 
-function showInstallButton() {
-  const btn = document.createElement("button");
-  btn.innerText = "ติดตั้งแอป";
-  btn.style = `
-    position:fixed;
-    bottom:20px;
-    left:50%;
-    transform:translateX(-50%);
-    padding:10px 16px;
-    border:none;
-    border-radius:8px;
-    background:#3b82f6;
-    color:white;
-    z-index:9999;
-  `;
+installBtn.onclick = async ()=>{
+  deferredPrompt.prompt();
+  installBtn.style.display="none";
+};
 
-  btn.onclick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt = null;
-      btn.remove();
-    }
-  };
 
-  document.body.appendChild(btn);
-}
+// =====================
+// BACK BUTTON CONTROL
+// =====================
+history.replaceState(null,null,location.href);
 
-// ==========================
-// 4. REDIRECT → GAS
-// ==========================
-setTimeout(() => {
-  window.location.replace(APP_URL);
-}, 1200);
+window.addEventListener("popstate", ()=>{
+  if(confirm("ต้องการออกจากแอปหรือไม่")){
+    window.close();
+  }else{
+    history.pushState(null,null,location.href);
+  }
+});
+
+
+// =====================
+// REDIRECT → GAS
+// =====================
+setTimeout(()=>{
+  location.replace(APP_URL);
+},1200);
 
 </script>
 
